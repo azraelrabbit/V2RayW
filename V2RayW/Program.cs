@@ -9,6 +9,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Runtime.Serialization.Formatters.Binary;
 using System.ComponentModel;
+using System.Configuration;
 using System.Threading;
 using System.Text;
 using System.Runtime.InteropServices;
@@ -47,19 +48,48 @@ namespace V2RayW
                 Properties.Settings.Default.Save();
             }
         }
+
+
+        public static bool enableSystemProxy
+        {
+            get { return Properties.Settings.Default.enableSystemProxy; }
+
+            set { Properties.Settings.Default.enableSystemProxy = value;
+                Properties.Settings.Default.Save(); }
+
+        }
+
         public static MainForm mainForm;
-        const string v2rayVersion = "v2.33";
+        const string v2rayVersion = "v2.46";
         static BackgroundWorker v2rayCoreWorker = new BackgroundWorker();
         public static AutoResetEvent _resetEvent = new AutoResetEvent(false);
         public static bool finalAction = false;
         public static StringBuilder output = new StringBuilder();
         private static int lineCount = 0;
+
+
+
+        private static void MakePortable(ApplicationSettingsBase settings)
+        {
+            var portableSettingsProvider =
+                new PortableSettingsProvider2();//(settings.GetType().Name + ".settings");
+            settings.Providers.Add(portableSettingsProvider);
+            foreach (System.Configuration.SettingsProperty prop in settings.Properties)
+                prop.Provider = portableSettingsProvider;
+            settings.Reload();
+        }
+
         /// <summary>
         /// The main entry point for the application.
         /// </summary>
         [STAThread]
         static void Main()
         {
+            //make setting save to application execute path.
+            MakePortable(Properties.Settings.Default);
+            //MakePortable(Properties.LastUsedSettings.Default);
+            //MakePortable(Properties.DefaultSettings.Default);
+
             //backgourdworker
             v2rayCoreWorker.WorkerSupportsCancellation = true;
             v2rayCoreWorker.DoWork += new DoWorkEventHandler(Program.v2rayCoreWorker_DoWork);
@@ -85,7 +115,7 @@ namespace V2RayW
                     {
                         if (Properties.Settings.Default.alarmUnknown == true)
                         {
-          
+
                             DialogResult res = MessageBox.Show(String.Format("Unknown version of v2ray core detected, which may not be compatible with V2RayW.\n{0} is suggested. Do you want to continue to use the existing core?", Program.v2rayVersion), "Unknown v2ray.exe!", MessageBoxButtons.OKCancel, MessageBoxIcon.Warning);
                             if (res == DialogResult.OK)
                             {
@@ -109,7 +139,7 @@ namespace V2RayW
                     }
                 default: break;
             }
-            
+
             //Properties.Settings.Default.Reset();
             Properties.Settings.Default.Upgrade();
             //MessageBox.Show(Properties.Settings.Default.profilesStr);
@@ -132,7 +162,7 @@ namespace V2RayW
             {
                 Program.proxyIsOn = false;
             }
-            if (Program.selectedServerIndex >= Program.profiles.Count )
+            if (Program.selectedServerIndex >= Program.profiles.Count)
             {
                 Program.selectedServerIndex = Program.profiles.Count - 1;
             }
@@ -151,7 +181,7 @@ namespace V2RayW
         {
             throw new NotImplementedException();
         }*/
-        
+
         static void OnProcessExit(object sender, EventArgs e)
         {
             Properties.Settings.Default.Save();
@@ -186,7 +216,7 @@ namespace V2RayW
                 return defaultValue;
             }
         }
-        
+
 
         public static async Task stopV2Ray()
         { // make sure v2ray is stopped
@@ -214,12 +244,14 @@ namespace V2RayW
                 if (generateConfigJson())
                 {
                     v2rayCoreWorker.RunWorkerAsync();
-                } else
+                }
+                else
                 {
                     Program.proxyIsOn = false;
                     mainForm.updateMenu();
                 }
-            } else
+            }
+            else
             {
                 await stopV2Ray();
                 Debug.WriteLine("v stopped");
@@ -231,7 +263,7 @@ namespace V2RayW
                 if (res == 2)
                     MessageBox.Show("Fained to modify system proxy settings!");
                 else if (res == 1)
-                    Debug.WriteLine("Shall I tell the user to wait for a while? "); 
+                    Debug.WriteLine("Shall I tell the user to wait for a while? ");
             }
         }
 
@@ -243,36 +275,69 @@ namespace V2RayW
 
         public static int runSysproxy()
         {
-            RegistryKey registry = Registry.CurrentUser.OpenSubKey("Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings", true);
 
-            bool settingsReturn, refreshReturn;
+   
+                RegistryKey registry = Registry.CurrentUser.OpenSubKey("Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings", true);
 
-            registry.SetValue("ProxyEnable", proxyIsOn ? 1 : 0);
-            if (proxyIsOn)
+                bool settingsReturn, refreshReturn;
+
+                registry.SetValue("ProxyEnable", enableSystemProxy ? 1 : 0);
+
+            if (enableSystemProxy)
             {
-                registry.SetValue("ProxyServer", (Properties.Settings.Default.inProtocol == 0 ? "socks=" : "http://") + $"127.0.0.1:{Properties.Settings.Default.localPort}");
-                registry.SetValue("ProxyOverride", "<local>;localhost;127.*;10.*;172.16.*;172.17.*;172.18.*;172.19.*;172.20.*;172.21.*;172.22.*;172.23.*;172.24.*;172.25.*;172.26.*;172.27.*;172.28.*;172.29.*;172.30.*;172.31.*;172.32.*;192.168.*");
+                if (proxyIsOn)
+                {
+                    registry.SetValue("ProxyServer",
+                        (Properties.Settings.Default.inProtocol == 0 ? "socks=" : "http://") +
+                        $"127.0.0.1:{Properties.Settings.Default.localPort}");
+                    registry.SetValue("ProxyOverride",
+                        "<local>;localhost;127.*;10.*;172.16.*;172.17.*;172.18.*;172.19.*;172.20.*;172.21.*;172.22.*;172.23.*;172.24.*;172.25.*;172.26.*;172.27.*;172.28.*;172.29.*;172.30.*;172.31.*;172.32.*;192.168.*");
+                }
+                var sysState = registry.GetValue("ProxyEnable").ToString() == (proxyIsOn ? "1" : "0");
+                var sysServer = proxyIsOn
+                    ? registry.GetValue("ProxyServer").ToString() ==
+                      (Properties.Settings.Default.inProtocol == 0 ? "socks=" : "http://") +
+                      $"127.0.0.1:{Properties.Settings.Default.localPort}"
+                    : true;
+                //MessageBox.Show(registry.GetValue("ProxyServer").ToString());
+                var sysOverride = proxyIsOn
+                    ? registry.GetValue("ProxyOverride").ToString() ==
+                      "<local>;localhost;127.*;10.*;172.16.*;172.17.*;172.18.*;172.19.*;172.20.*;172.21.*;172.22.*;172.23.*;172.24.*;172.25.*;172.26.*;172.27.*;172.28.*;172.29.*;172.30.*;172.31.*;172.32.*;192.168.*"
+                    : true;
+                // They cause the OS to refresh the settings, causing IP to realy update
+                settingsReturn = InternetSetOption(IntPtr.Zero, INTERNET_OPTION_SETTINGS_CHANGED, IntPtr.Zero, 0);
+                refreshReturn = InternetSetOption(IntPtr.Zero, INTERNET_OPTION_REFRESH, IntPtr.Zero, 0);
+                if (sysServer && sysState && sysOverride)
+                {
+                    if (settingsReturn && refreshReturn)
+                    {
+                        return 0;
+                    }
+                    else
+                    {
+                        return 1;
+                    }
+                }
+                else
+                {
+                    return 2;
+                }
+
             }
-            var sysState = registry.GetValue("ProxyEnable").ToString() == (proxyIsOn ? "1" : "0");
-            var sysServer = proxyIsOn ? registry.GetValue("ProxyServer").ToString() == (Properties.Settings.Default.inProtocol == 0 ? "socks=" : "http://") +  $"127.0.0.1:{Properties.Settings.Default.localPort}" : true;
-            //MessageBox.Show(registry.GetValue("ProxyServer").ToString());
-            var sysOverride = proxyIsOn ? registry.GetValue("ProxyOverride").ToString() == "<local>;localhost;127.*;10.*;172.16.*;172.17.*;172.18.*;172.19.*;172.20.*;172.21.*;172.22.*;172.23.*;172.24.*;172.25.*;172.26.*;172.27.*;172.28.*;172.29.*;172.30.*;172.31.*;172.32.*;192.168.*" : true;
-            // They cause the OS to refresh the settings, causing IP to realy update
-            settingsReturn = InternetSetOption(IntPtr.Zero, INTERNET_OPTION_SETTINGS_CHANGED, IntPtr.Zero, 0);
-            refreshReturn = InternetSetOption(IntPtr.Zero, INTERNET_OPTION_REFRESH, IntPtr.Zero, 0);
-            if (sysServer && sysState && sysOverride)
+            else
             {
+                settingsReturn = InternetSetOption(IntPtr.Zero, INTERNET_OPTION_SETTINGS_CHANGED, IntPtr.Zero, 0);
+                refreshReturn = InternetSetOption(IntPtr.Zero, INTERNET_OPTION_REFRESH, IntPtr.Zero, 0);
                 if (settingsReturn && refreshReturn)
                 {
                     return 0;
-                } else
+                }
+                else
                 {
                     return 1;
                 }
-            } else
-            {
-                return 2;
             }
+            return 0;
         }
 
         /*
@@ -326,7 +391,8 @@ namespace V2RayW
                     ip = "127.0.0.1"
                 };
                 json.inbound.settings = JObject.Parse(JsonConvert.SerializeObject(inboundSettings));
-            } else
+            }
+            else
             {
                 json.inbound.settings = JObject.Parse("{\"timeout\": 0 }");
             }
@@ -336,7 +402,7 @@ namespace V2RayW
             json.outbound.settings.vnext[0].users[0].id = profiles[selectedServerIndex].userId;
             json.outbound.settings.vnext[0].users[0].alterId = profiles[selectedServerIndex].alterId;
             json.outbound.settings.vnext[0].users[0].security = (new string[] { "aes-128-cfb", "aes-128-gcm", "chacha20-poly1305" })[profiles[selectedServerIndex].security % 3];
-            
+
             var ts = JObject.Parse(Properties.Settings.Default.transportSettings);
             //json.outbound.streamSettings.tcpSettings = ts["tcpSettings"];
             //json.outbound.streamSettings.kcpSettings = ts["kcpSettings"];
@@ -346,12 +412,13 @@ namespace V2RayW
 
             json.outbound.mux = JObject.Parse(Properties.Settings.Default.mux);
             var dnsArray = Properties.Settings.Default.dns.Split(',');
-            json.dns = JObject.Parse(dnsArray.Count() > 0 ? JsonConvert.SerializeObject( new { servers = dnsArray }) : "{\"servers\":[\"localhost\"]}");   
+            json.dns = JObject.Parse(dnsArray.Count() > 0 ? JsonConvert.SerializeObject(new { servers = dnsArray }) : "{\"servers\":[\"localhost\"]}");
             try
             {
                 System.IO.File.WriteAllText(AppDomain.CurrentDomain.BaseDirectory + "configw.json", JsonConvert.SerializeObject(json));
                 return true;
-            } catch
+            }
+            catch
             {
                 MessageBox.Show("cannot create config files!");
                 return false;
@@ -399,7 +466,7 @@ namespace V2RayW
             {
                 e.Cancel = true;
             }
-            if(finalAction)
+            if (finalAction)
             {
                 Debug.WriteLine("final action, set");
                 _resetEvent.Set();
@@ -410,7 +477,7 @@ namespace V2RayW
         {
             if (!e.Cancelled)
             {
-                DialogResult res = MessageBox.Show("v2ray core exited unexpectedly! \n View log information?","Error", MessageBoxButtons.OKCancel,MessageBoxIcon.Stop);
+                DialogResult res = MessageBox.Show("v2ray core exited unexpectedly! \n View log information?", "Error", MessageBoxButtons.OKCancel, MessageBoxIcon.Stop);
                 if (res == DialogResult.OK)
                 {
                     mainForm.viewLogToolStripMenuItem_Click(sender, e);
@@ -433,7 +500,8 @@ namespace V2RayW
             try
             {
                 v2rayProcess.Start();
-            } catch
+            }
+            catch
             {
                 return 2;
             }
@@ -442,7 +510,8 @@ namespace V2RayW
             if (v2rayProcess.ExitCode != 0)
             {
                 return 2;
-            } else
+            }
+            else
             {
                 if (versionOutput.StartsWith("V2Ray "))
                 {
@@ -462,7 +531,7 @@ namespace V2RayW
             }
         }
     }
-    
+
     public class Profile
     {
         internal string address = "1.2.3.4";

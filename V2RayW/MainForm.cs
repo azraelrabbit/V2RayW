@@ -52,6 +52,11 @@ namespace V2RayW
                 item.Enabled = false;
                 serversToolStripMenuItem.DropDownItems.Add(item);
             }
+
+            //if (Program.enableSystemProxy)
+            //{
+                tlspEnableSystemProxy.Checked = Program.enableSystemProxy;
+            //}
         }
 
         private void switchToServer(object sender, EventArgs e)
@@ -143,6 +148,13 @@ namespace V2RayW
             }
             System.Threading.Thread.Sleep(500);
             MessageBox.Show(Program.v2rayoutput);*/
+        }
+
+        private void tlspEnableSystemProxy_Click(object sender, EventArgs e)
+        {
+            Program.enableSystemProxy = !Program.enableSystemProxy;
+            Program.updateSystemProxy();
+            this.updateMenu();
         }
     }
 }
