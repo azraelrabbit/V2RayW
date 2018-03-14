@@ -46,6 +46,7 @@ namespace V2RayW
             Program.selectedServerIndex = ConfigForm.profiles.Count > 0 ? listBoxServers.SelectedIndex : -1;
 
             // save to file
+            Properties.Settings.Default.localAddress = txtBoxListenAddress.Text != "" ? txtBoxListenAddress.Text : "0.0.0.0";
             Properties.Settings.Default.inProtocol = comboBoxInP.SelectedIndex; // 0:socks, 1:http
             Properties.Settings.Default.localPort = Program.strToInt(textBoxLocalPort.Text, 1080);
             Properties.Settings.Default.udpSupport = checkBoxUDP.Checked;
@@ -80,6 +81,7 @@ namespace V2RayW
             //Properties.Settings.Default.Upgrade();
             comboBoxInP.SelectedIndex = Properties.Settings.Default.inProtocol;
             textBoxLocalPort.Text = Properties.Settings.Default.localPort.ToString();
+            txtBoxListenAddress.Text = Properties.Settings.Default.localAddress.ToString();
             checkBoxUDP.Checked = Properties.Settings.Default.udpSupport;
             textBoxDNS.Text = Properties.Settings.Default.dns;
             loadProfiles();

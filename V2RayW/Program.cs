@@ -381,6 +381,7 @@ namespace V2RayW
             dynamic json = JObject.Parse(templateStr);
             //json.transport = JObject.Parse(Properties.Settings.Default.transportSettings);
             json.inbound.port = Properties.Settings.Default.localPort;
+            json.inbound.listen = Properties.Settings.Default.localAddress;
             json.inbound.protocol = Properties.Settings.Default.inProtocol == 0 ? "socks" : "http";
             if (Properties.Settings.Default.inProtocol == 0)
             {
@@ -388,7 +389,7 @@ namespace V2RayW
                 {
                     auth = "noauth",
                     udp = Properties.Settings.Default.udpSupport,
-                    ip = "127.0.0.1"
+                    ip = Properties.Settings.Default.localAddress
                 };
                 json.inbound.settings = JObject.Parse(JsonConvert.SerializeObject(inboundSettings));
             }
